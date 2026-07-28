@@ -1,9 +1,6 @@
-
 import os
 import telebot
 import urllib.parse
-import requests
-from bs4 import BeautifulSoup
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -12,45 +9,12 @@ bot = telebot.TeleBot(BOT_TOKEN)
 user_steps = {}
 book_storage = {}
 
-def get_exact_first_search_link(book_name):
-    try:
-        query = f'"{book_name}" pdfdrive.com'
-        url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-        }
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            for a in soup.find_all('a', class_='result__url', href=True):
-                raw_link = a['href']
-                if 'uddg=' in raw_link:
-                    parsed = urllib.parse.parse_qs(urllib.parse.urlparse(raw_link).query)
-                    if 'uddg' in parsed:
-                        link = parsed['uddg'][0]
-                        if "pdfdrive" not in link.lower():
-                            return link
-                elif raw_link.startswith('http'):
-                    if "pdfdrive" not in raw_link.lower():
-                        return raw_link
-            for a in soup.find_all('a', href=True):
-                href = a['href']
-                if 'uddg=' in href:
-                    parsed = urllib.parse.parse_qs(urllib.parse.urlparse(href).query)
-                    if 'uddg' in parsed:
-                        link = parsed['uddg'][0]
-                        if "pdfdrive" not in link.lower():
-                            return link
-        return f"https://www.google.com/search?q={urllib.parse.quote(f'\"{book_name}\"')}"
-    except Exception:
-        return f"https://www.google.com/search?q={urllib.parse.quote(f'\"{book_name}\"')}"
-
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     welcome_text = (
         "Hello! 📚\n\n"
         "I am your Book Finder Bot.\n"
-        "Send me the book name to get the exact website link after completing the ad steps."
+        "Send me the book name to get the exact Google search link after completing the ad steps."
     )
     bot.reply_to(message, welcome_text)
 
@@ -58,10 +22,12 @@ def send_welcome(message):
 def search_book(message):
     chat_id = message.chat.id
     book_query = message.text.strip()
-    wait_msg = bot.reply_to(message, "🔍 Searching the exact website, please wait...")
+    wait_msg = bot.reply_to(message, "🔍 Preparing your search link, please wait...")
 
     try:
-        found_url = get_exact_first_search_link(book_query)
+        formatted_query = f'"{book_query}" pdfdrive.com'
+        found_url = f"https://www.google.com/search?q={urllib.parse.quote(formatted_query)}"
+        
         book_storage[chat_id] = found_url
         user_steps[chat_id] = 1
 
@@ -72,7 +38,7 @@ def search_book(message):
 
         reply_text = (
             f"📖 <b>Book Name:</b> {book_query}\n\n"
-            f"⚠️ <b>Rule:</b> Complete 3 steps to unlock the exact website link.\n"
+            f"⚠️ <b>Rule:</b> Complete 3 steps to unlock the exact search link.\n"
             f"👉 Click 'Watch Ad 1', complete the ad, then click 'Next Step'."
         )
         
@@ -115,20 +81,20 @@ def handle_callback(call):
         user_steps[chat_id] = 3
         markup = InlineKeyboardMarkup(row_width=1)
         btn_ad3 = InlineKeyboardButton("📺 Watch Ad 3 of 3 (Required)", callback_data="watch_ad_3")
-        btn_finish = InlineKeyboardButton("🔓 Unlock Website Link (Final)", callback_data="unlock_link")
+        btn_finish = InlineKeyboardButton("🔓 Unlock Google Search Link (Final)", callback_data="unlock_link")
         markup.add(btn_ad3, btn_finish)
         bot.edit_message_text(
-            "⚠️ <b>Progress:</b> Step 3 ready.\n👉 Click 'Watch Ad 3', complete it, then click 'Unlock Website Link'.",
+            "⚠️ <b>Progress:</b> Step 3 ready.\n👉 Click 'Watch Ad 3', complete it, then click 'Unlock Google Search Link'.",
             chat_id=chat_id, message_id=message_id, parse_mode='HTML', reply_markup=markup
         )
     elif call.data == "unlock_link":
         final_url = book_storage.get(chat_id, "https://www.google.com")
         markup = InlineKeyboardMarkup(row_width=1)
-        btn_download = InlineKeyboardButton("📥 Open Exact Website Link", url=final_url)
+        btn_download = InlineKeyboardButton("📥 Open Google Search Link", url=final_url)
         markup.add(btn_download)
         success_text = (
             "🎉 <b>Success!</b>\n\n"
-            "All steps completed. The exact website link is now unlocked!\n\n"
+            "All steps completed. The exact Google search link is now unlocked!\n\n"
             "👇 Click the button below to open it:"
         )
         bot.edit_message_text(
