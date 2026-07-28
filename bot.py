@@ -5,11 +5,9 @@ from flask import Flask
 from threading import Thread
 from duckduckgo_search import DDGS
 
-# Fetching Token and API Key from Environment Variables
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 SHRINKME_API_KEY = os.environ.get('SHRINKME_API_KEY')
 
-# Initializing the bot and Flask app
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask('')
 
@@ -18,9 +16,8 @@ def home():
     return "Bot is running!"
 
 def run_flask():
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
 
-# 1. Handling the /start command
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     welcome_text = (
@@ -30,7 +27,6 @@ def send_welcome(message):
     )
     bot.reply_to(message, welcome_text)
 
-# 2. Searching for the book link via DuckDuckGo
 @bot.message_handler(func=lambda message: True)
 def search_book(message):
     book_query = message.text
@@ -66,7 +62,6 @@ def search_book(message):
     except Exception as e:
         bot.edit_message_text("❌ A server error occurred. Please try again later.", chat_id=message.chat.id, message_id=wait_msg.message_id)
 
-# Running Flask in background and Bot in main thread
 if __name__ == "__main__":
     t = Thread(target=run_flask)
     t.start()
