@@ -1,10 +1,12 @@
+import os
 import requests
 from bs4 import BeautifulSoup
 import telebot
 
 # ----------------- Configuration -----------------
-BOT_TOKEN = "8829414299:AAGK_J9MbIAwojhf7qd07j5tkkXCl9Ye75M"
-SHRINKME_API_KEY = "99a01d01c2d2fd176a7afbe341b227023b06ee44"
+# Environment variables থেকে Token এবং API Key নেওয়া হচ্ছে (সম্পূর্ণ নিরাপদ)
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+SHRINKME_API_KEY = os.environ.get("SHRINKME_API_KEY")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -24,16 +26,13 @@ def shorten_url(original_url):
 
 # 2. Function to search and scrape PDFDrive
 def search_pdfdrive(query):
-    # PDFDrive-এ সার্চ করার লিংক
     url = f"https://www.pdfdrive.com/search?q={query}"
-    # ওয়েবসাইটের কাছে নিজেদের সাধারণ ব্রাউজার হিসেবে পরিচয় দেওয়া
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
     
     try:
         response = requests.get(url, headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # PDFDrive-এর প্রথম রেজাল্টটি খোঁজা
         first_result = soup.find('div', class_='file-left')
         
         if first_result:
@@ -55,7 +54,7 @@ def search_pdfdrive(query):
         
     return None
 
-# 3. /start Command Handler (ইংরেজিতে সুন্দরভাবে বোঝানো)
+# 3. /start Command Handler
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     welcome_text = (
@@ -72,13 +71,11 @@ def send_welcome(message):
 @bot.message_handler(func=lambda message: True)
 def handle_search(message):
     query = message.text.strip()
-    # ইউজারকে জানানো হচ্ছে যে বট কাজ করছে
     msg = bot.reply_to(message, "🔍 *Searching PDFDrive for your book...*\nPlease wait a moment.", parse_mode="Markdown")
     
     book = search_pdfdrive(query)
     
     if book:
-        # লিংক শর্ট করা হচ্ছে ইনকামের জন্য
         short_link = shorten_url(book["link"])
         
         caption = (
@@ -87,11 +84,10 @@ def handle_search(message):
             f"_(Click the link, skip the ad, and download your book from PDFDrive)_"
         )
         
-        # ছবি থাকলে ছবির সাথে ক্যাপশন পাঠানো
         if book["image"] and book["image"].startswith("http"):
             try:
                 bot.send_photo(message.chat.id, book["image"], caption=caption, parse_mode="Markdown")
-                bot.delete_message(message.chat.id, msg.message_id) # 'Searching...' মেসেজ ডিলিট করা
+                bot.delete_message(message.chat.id, msg.message_id)
             except Exception:
                 bot.edit_message_text(caption, message.chat.id, msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
         else:
@@ -105,6 +101,10 @@ def handle_search(message):
 
 # 5. Start Polling
 if __name__ == "__main__":
-    print("Free Book PDF Bot is running...")
-    bot.infinity_polling()
-      
+    # টোকেন সঠিকভাবে পেয়েছে কিনা তা চেক করা হচ্ছে
+    if not BOT_TOKEN or not SHRINKME_API_KEY:
+        print("Error: BOT_TOKEN or SHRINKME_API_KEY is not set in Environment Variables!")
+    else:
+        print("Free Book PDF Bot is running securely...")
+        bot.infinity_polling()
+    
