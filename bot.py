@@ -1,22 +1,12 @@
 import os
 import telebot
 import requests
-from flask import Flask
-from threading import Thread
 from duckduckgo_search import DDGS
 
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 SHRINKME_API_KEY = os.environ.get('SHRINKME_API_KEY')
 
 bot = telebot.TeleBot(BOT_TOKEN)
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Bot is running!"
-
-def run_flask():
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -63,8 +53,6 @@ def search_book(message):
         bot.edit_message_text("❌ A server error occurred. Please try again later.", chat_id=message.chat.id, message_id=wait_msg.message_id)
 
 if __name__ == "__main__":
-    t = Thread(target=run_flask)
-    t.start()
-    print("Bot and Flask server are successfully running...")
+    print("Bot is successfully running as Background Worker...")
     bot.infinity_polling()
-    
+            
