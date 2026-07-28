@@ -38,7 +38,6 @@ def search_book(message):
             results = list(ddgs.text(query, max_results=1))
             if results:
                 found_url = results[0].get('href')
-                # DuckDuckGo থেকে পাওয়া পেজের টাইটেলটি বইয়ের নাম হিসেবে ব্যবহার করা যেতে পারে
                 book_title = results[0].get('title', book_query)
         
         if found_url:
@@ -68,4 +67,4 @@ def search_book(message):
 if __name__ == "__main__":
     print("Bot is successfully running...")
     bot.infinity_polling()
-                                     
+        
