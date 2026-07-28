@@ -1,3 +1,4 @@
+
 import os
 import telebot
 import urllib.parse
@@ -11,14 +12,14 @@ bot = telebot.TeleBot(BOT_TOKEN)
 user_steps = {}
 book_storage = {}
 
-def get_exact_first_link(book_name):
+def get_exact_first_search_link(book_name):
     try:
         query = f'"{book_name}" pdfdrive.com'
         url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         }
-        response = requests.get(url, headers=headers, timeout=5)
+        response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             for a in soup.find_all('a', class_='result__url', href=True):
@@ -26,18 +27,29 @@ def get_exact_first_link(book_name):
                 if 'uddg=' in raw_link:
                     parsed = urllib.parse.parse_qs(urllib.parse.urlparse(raw_link).query)
                     if 'uddg' in parsed:
-                        return parsed['uddg'][0]
+                        link = parsed['uddg'][0]
+                        if "pdfdrive" not in link.lower():
+                            return link
                 elif raw_link.startswith('http'):
-                    return raw_link
-        return f"https://www.pdfdrive.com/search?q={urllib.parse.quote(book_name)}"
+                    if "pdfdrive" not in raw_link.lower():
+                        return raw_link
+            for a in soup.find_all('a', href=True):
+                href = a['href']
+                if 'uddg=' in href:
+                    parsed = urllib.parse.parse_qs(urllib.parse.urlparse(href).query)
+                    if 'uddg' in parsed:
+                        link = parsed['uddg'][0]
+                        if "pdfdrive" not in link.lower():
+                            return link
+        return f"https://www.google.com/search?q={urllib.parse.quote(f'\"{book_name}\"')}"
     except Exception:
-        return f"https://www.pdfdrive.com/search?q={urllib.parse.quote(book_name)}"
+        return f"https://www.google.com/search?q={urllib.parse.quote(f'\"{book_name}\"')}"
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     welcome_text = (
         "Hello! 📚\n\n"
-        "I am your PDF Book Finder Bot.\n"
+        "I am your Book Finder Bot.\n"
         "Send me the book name to get the exact website link after completing the ad steps."
     )
     bot.reply_to(message, welcome_text)
@@ -46,10 +58,10 @@ def send_welcome(message):
 def search_book(message):
     chat_id = message.chat.id
     book_query = message.text.strip()
-    wait_msg = bot.reply_to(message, "🔍 Finding the exact website, please wait...")
+    wait_msg = bot.reply_to(message, "🔍 Searching the exact website, please wait...")
 
     try:
-        found_url = get_exact_first_link(book_query)
+        found_url = get_exact_first_search_link(book_query)
         book_storage[chat_id] = found_url
         user_steps[chat_id] = 1
 
@@ -73,22 +85,7 @@ def search_book(message):
             reply_markup=markup
         )
     except Exception:
-        fallback_url = f"https://www.pdfdrive.com/search?q={urllib.parse.quote(book_query)}"
-        book_storage[chat_id] = fallback_url
-        user_steps[chat_id] = 1
-        
-        markup = InlineKeyboardMarkup(row_width=1)
-        btn_ad1 = InlineKeyboardButton("📺 Watch Ad 1 of 3 (Required)", callback_data="watch_ad_1")
-        btn_next = InlineKeyboardButton("➡️ Next Step", callback_data="next_step_2")
-        markup.add(btn_ad1, btn_next)
-        
-        bot.edit_message_text(
-            f"📖 <b>Book Name:</b> {book_query}\n\n⚠️ Complete 3 steps to unlock your link.",
-            chat_id=chat_id,
-            message_id=wait_msg.message_id,
-            parse_mode='HTML',
-            reply_markup=markup
-        )
+        bot.edit_message_text("❌ An error occurred. Please try again.", chat_id=chat_id, message_id=wait_msg.message_id)
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
@@ -125,7 +122,7 @@ def handle_callback(call):
             chat_id=chat_id, message_id=message_id, parse_mode='HTML', reply_markup=markup
         )
     elif call.data == "unlock_link":
-        final_url = book_storage.get(chat_id, "https://www.pdfdrive.com")
+        final_url = book_storage.get(chat_id, "https://www.google.com")
         markup = InlineKeyboardMarkup(row_width=1)
         btn_download = InlineKeyboardButton("📥 Open Exact Website Link", url=final_url)
         markup.add(btn_download)
@@ -144,4 +141,4 @@ def handle_callback(call):
 
 if __name__ == "__main__":
     bot.infinity_polling()
-    
+        
