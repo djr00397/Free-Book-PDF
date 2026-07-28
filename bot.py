@@ -1,72 +1,81 @@
 import os
 import telebot
+import urllib.parse
+import requests
+from bs4 import BeautifulSoup
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from duckduckgo_search import DDGS
 
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
-# আপনার মনিটেক বা অন্যান্য অ্যাড নেটওয়ার্কের ডাইরেক্ট লিংক এখানে বসাবেন
 MONETAG_AD_LINK = "https://your-monetag-ad-link.com" 
-EXTRA_AD_LINK_1 = "https://your-extra-ad-link-1.com"
-EXTRA_AD_LINK_2 = "https://your-extra-ad-link-2.com"
+EXTRA_AD_LINK = "https://your-extra-ad-link.com"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
 user_steps = {}
 book_storage = {}
 
+def get_first_pdfdrive_link(book_name):
+    try:
+        # আপনি যেভাবে চাচ্ছেন: "বইয়ের নাম" pdfdrive.com
+        query = f'"{book_name}" pdfdrive.com'
+        encoded_query = urllib.parse.quote_plus(query)
+        
+        # গুগল বা ডাকডাকগো সার্চের পরিবর্তে সরাসরি ইউআরএল তৈরি বা স্ক্র্যাপ করার নিরাপদ পদ্ধতি
+        # এখানে সরাসরি DuckDuckGo HTML পেজ থেকে প্রথম লিংকটি নিখুঁতভাবে তুলে আনা হবে
+        url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # সার্চ রেজাল্টের প্রথম লিংকটি খুঁজে বের করা
+            for a in soup.find_all('a', class_='result__url', href=True):
+                link = a['href']
+                # ইউআরএল ডিকোড করা যদি রিডাইরেক্ট লিংক হয়
+                if 'uddg=' in link:
+                    parsed_url = urllib.parse.parse_qs(urllib.parse.urlparse(link).query)
+                    if 'uddg' in parsed_url:
+                        return parsed_url['uddg'][0]
+                return link
+                
+        # যদি স্ক্র্যাপিং এ সমস্যা হয়, তবে ব্যাকআপ হিসেবে ডাইরেক্ট পিডিএফ ড্রাইভের সার্চ পেজ জেনারেট করবে
+        return f"https://www.pdfdrive.com/search?q={urllib.parse.quote(book_name)}"
+    except Exception as e:
+        return f"https://www.pdfdrive.com/search?q={urllib.parse.quote(book_name)}"
+
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     welcome_text = (
         "Hello! 📚\n\n"
         "I am your PDF Book Finder Bot.\n"
-        "Send me the name of the book you want, complete the 3 steps, and get your download link!"
+        "Send me the name of the book, complete the ad steps, and get your exact website link!"
     )
-    # স্টার্ট মেসেজেও অতিরিক্ত উপার্জনের জন্য একটি স্পอนসর্ড বাটন রাখা হলো
-    markup = InlineKeyboardMarkup(row_width=1)
-    markup.add(InlineKeyboardButton("🌟 Sponsor / Special Offer", url=EXTRA_AD_LINK_1))
-    
-    bot.reply_to(message, welcome_text, reply_markup=markup)
+    bot.reply_to(message, welcome_text)
 
 @bot.message_handler(func=lambda message: True)
 def search_book(message):
     chat_id = message.chat.id
     book_query = message.text.strip()
-    wait_msg = bot.reply_to(message, "🔍 Searching for the book, please wait...")
+    wait_msg = bot.reply_to(message, "🔍 Searching the exact website, please wait...")
 
     try:
-        formatted_query = f'"{book_query}" pdfdrive.com'
-        found_url = None
-        book_title = book_query
-        book_snippet = "Complete the ad steps below to unlock your book."
+        # আপনার চাওয়া ফরম্যাট অনুযায়ী প্রথম ওয়েবসাইটের লিংক বের করা
+        found_url = get_first_pdfdrive_link(book_query)
         
-        with DDGS() as ddgs:
-            results = list(ddgs.text(formatted_query, max_results=1))
-            if results:
-                found_url = results[0].get('href')
-                book_title = results[0].get('title', book_query)
-                book_snippet = results[0].get('body', 'Complete the ad steps below to unlock your book.')
-
-        if not found_url:
-            import urllib.parse
-            encoded_query = urllib.parse.quote(book_query)
-            found_url = f"https://www.pdfdrive.com/search?q={encoded_query}"
-
         book_storage[chat_id] = found_url
         user_steps[chat_id] = 1
 
-        # ১ম স্টেপের বাটন এবং সাথে একটি অতিরিক্ত স্পন্সরড/অ্যাড বাটন
         markup = InlineKeyboardMarkup(row_width=1)
         btn_ad1 = InlineKeyboardButton("📺 Watch Ad 1 of 3 (Required)", url=MONETAG_AD_LINK)
-        btn_extra = InlineKeyboardButton("🔥 Bonus Offer (Extra Ad)", url=EXTRA_AD_LINK_2)
+        btn_extra = InlineKeyboardButton("🔥 Bonus Offer", url=EXTRA_AD_LINK)
         btn_next = InlineKeyboardButton("➡️ Next Step (After Watching Ad)", callback_data="next_step_2")
         
         markup.add(btn_ad1, btn_extra, btn_next)
 
         reply_text = (
-            f"📖 <b>Book:</b> {book_title}\n\n"
-            f"📝 <b>Details:</b> {book_snippet}\n\n"
-            f"⚠️ <b>Rule:</b> You must watch 3 required ads to unlock the download link.\n"
-            f"👉 Click 'Watch Ad 1', view it, close the tab, then click 'Next Step'."
+            f"📖 <b>Book Query:</b> {book_query}\n\n"
+            f"⚠️ <b>Rule:</b> Complete 3 steps to unlock the exact website link.\n"
+            f"👉 Click 'Watch Ad 1', view the ad, close it, then click 'Next Step'."
         )
         
         bot.edit_message_text(
@@ -79,8 +88,7 @@ def search_book(message):
         )
 
     except Exception as e:
-        bot.edit_message_text("❌ An error occurred while searching. Please try again later.", chat_id=chat_id, message_id=wait_msg.message_id)
-
+        bot.edit_message_text("❌ An error occurred. Please try again.", chat_id=chat_id, message_id=wait_msg.message_id)
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
@@ -98,7 +106,7 @@ def handle_callback(call):
         markup.add(btn_ad2, btn_next)
         
         bot.edit_message_text(
-            call.message.text.split("⚠️")[0] + "⚠️ <b>Progress:</b> Step 2 ready.\n👉 Click 'Watch Ad 2', view it, then click 'Next Step'.",
+            "⚠️ <b>Progress:</b> Step 2 ready.\n👉 Click 'Watch Ad 2', view it, then click 'Next Step'.",
             chat_id=chat_id,
             message_id=message_id,
             parse_mode='HTML',
@@ -109,11 +117,11 @@ def handle_callback(call):
         user_steps[chat_id] = 3
         markup = InlineKeyboardMarkup(row_width=1)
         btn_ad3 = InlineKeyboardButton("📺 Watch Ad 3 of 3 (Required)", url=MONETAG_AD_LINK)
-        btn_finish = InlineKeyboardButton("🔓 Unlock Download Link (Final)", callback_data="unlock_link")
+        btn_finish = InlineKeyboardButton("🔓 Unlock Website Link (Final)", callback_data="unlock_link")
         markup.add(btn_ad3, btn_finish)
         
         bot.edit_message_text(
-            call.message.text.split("⚠️")[0] + "⚠️ <b>Progress:</b> Step 3 ready.\n👉 Click 'Watch Ad 3', view it, then click 'Unlock Download Link'.",
+            "⚠️ <b>Progress:</b> Step 3 ready.\n👉 Click 'Watch Ad 3', view it, then click 'Unlock Website Link'.",
             chat_id=chat_id,
             message_id=message_id,
             parse_mode='HTML',
@@ -124,14 +132,13 @@ def handle_callback(call):
         final_url = book_storage.get(chat_id, "https://www.pdfdrive.com")
         
         markup = InlineKeyboardMarkup(row_width=1)
-        btn_download = InlineKeyboardButton("📥 Download Book Now", url=final_url)
-        btn_extra_download = InlineKeyboardButton("🌟 Support Us (Extra Ad)", url=EXTRA_AD_LINK_1)
-        markup.add(btn_download, btn_extra_download)
+        btn_download = InlineKeyboardButton("📥 Open Exact Website Link", url=final_url)
+        markup.add(btn_download)
         
         success_text = (
-            "🎉 <b>Congratulations!</b>\n\n"
-            "All 3 required steps completed successfully. Your book download link is now unlocked!\n\n"
-            "👇 Click the button below to get your book:"
+            "🎉 <b>Success!</b>\n\n"
+            "All steps completed. The exact website link is now unlocked!\n\n"
+            "👇 Click the button below to open it:"
         )
         
         bot.edit_message_text(
@@ -148,6 +155,6 @@ def handle_callback(call):
             del book_storage[chat_id]
 
 if __name__ == "__main__":
-    print("Bot with Multi-Step Unlock & Extra Ads is running...")
+    print("Bot is running with exact search mechanism...")
     bot.infinity_polling()
         
