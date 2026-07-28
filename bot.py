@@ -16,9 +16,9 @@ def get_exact_first_link(book_name):
         query = f'"{book_name}" pdfdrive.com'
         url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         }
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             for a in soup.find_all('a', class_='result__url', href=True):
@@ -29,14 +29,8 @@ def get_exact_first_link(book_name):
                         return parsed['uddg'][0]
                 elif raw_link.startswith('http'):
                     return raw_link
-            for a in soup.find_all('a', href=True):
-                href = a['href']
-                if 'pdfdrive.com' in href and 'uddg=' in href:
-                    parsed = urllib.parse.parse_qs(urllib.parse.urlparse(href).query)
-                    if 'uddg' in parsed:
-                        return parsed['uddg'][0]
         return f"https://www.pdfdrive.com/search?q={urllib.parse.quote(book_name)}"
-    except Exception as e:
+    except Exception:
         return f"https://www.pdfdrive.com/search?q={urllib.parse.quote(book_name)}"
 
 @bot.message_handler(commands=['start'])
@@ -78,8 +72,23 @@ def search_book(message):
             disable_web_page_preview=True,
             reply_markup=markup
         )
-    except Exception as e:
-        bot.edit_message_text("❌ An error occurred. Please try again.", chat_id=chat_id, message_id=wait_msg.message_id)
+    except Exception:
+        fallback_url = f"https://www.pdfdrive.com/search?q={urllib.parse.quote(book_query)}"
+        book_storage[chat_id] = fallback_url
+        user_steps[chat_id] = 1
+        
+        markup = InlineKeyboardMarkup(row_width=1)
+        btn_ad1 = InlineKeyboardButton("📺 Watch Ad 1 of 3 (Required)", callback_data="watch_ad_1")
+        btn_next = InlineKeyboardButton("➡️ Next Step", callback_data="next_step_2")
+        markup.add(btn_ad1, btn_next)
+        
+        bot.edit_message_text(
+            f"📖 <b>Book Name:</b> {book_query}\n\n⚠️ Complete 3 steps to unlock your link.",
+            chat_id=chat_id,
+            message_id=wait_msg.message_id,
+            parse_mode='HTML',
+            reply_markup=markup
+        )
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
@@ -90,81 +99,44 @@ def handle_callback(call):
         user_steps[chat_id] = 1
 
     if call.data == "watch_ad_1":
-        ad_script_html = (
-            "<html><head><title>Ad 1</title>"
-            "<script src='https://alwingulla.com/88/tag.min.js' data-zone='11444597' async data-cfasync='false'></script>"
-            "<script>"
-            "window.onload = function() {"
-            "    if (typeof show_11444597 === 'function') {"
-            "        show_11444597().then(() => { alert('Ad 1 completed!'); });"
-            "    } else {"
-            "        show_11444597('pop').catch(e => {});"
-            "    }"
-            "};"
-            "</script>"
-            "</head><body style='background:#111; color:#fff; text-align:center; padding-top:50px; font-family:sans-serif;'>"
-            "<h2>Loading Ad 1...</h2><p>Please wait for the ad to load and complete.</p>"
-            "</body></html>"
-        )
         bot.answer_callback_query(call.id, "Ad 1 triggered!", show_alert=False)
-
     elif call.data == "watch_ad_2":
         bot.answer_callback_query(call.id, "Ad 2 triggered!", show_alert=False)
-
     elif call.data == "watch_ad_3":
         bot.answer_callback_query(call.id, "Ad 3 triggered!", show_alert=False)
-
     elif call.data == "next_step_2":
         user_steps[chat_id] = 2
         markup = InlineKeyboardMarkup(row_width=1)
         btn_ad2 = InlineKeyboardButton("📺 Watch Ad 2 of 3 (Required)", callback_data="watch_ad_2")
         btn_next = InlineKeyboardButton("➡️ Next Step", callback_data="next_step_3")
         markup.add(btn_ad2, btn_next)
-        
         bot.edit_message_text(
             "⚠️ <b>Progress:</b> Step 2 ready.\n👉 Click 'Watch Ad 2', complete it, then click 'Next Step'.",
-            chat_id=chat_id,
-            message_id=message_id,
-            parse_mode='HTML',
-            reply_markup=markup
+            chat_id=chat_id, message_id=message_id, parse_mode='HTML', reply_markup=markup
         )
-
     elif call.data == "next_step_3":
         user_steps[chat_id] = 3
         markup = InlineKeyboardMarkup(row_width=1)
         btn_ad3 = InlineKeyboardButton("📺 Watch Ad 3 of 3 (Required)", callback_data="watch_ad_3")
         btn_finish = InlineKeyboardButton("🔓 Unlock Website Link (Final)", callback_data="unlock_link")
         markup.add(btn_ad3, btn_finish)
-        
         bot.edit_message_text(
             "⚠️ <b>Progress:</b> Step 3 ready.\n👉 Click 'Watch Ad 3', complete it, then click 'Unlock Website Link'.",
-            chat_id=chat_id,
-            message_id=message_id,
-            parse_mode='HTML',
-            reply_markup=markup
+            chat_id=chat_id, message_id=message_id, parse_mode='HTML', reply_markup=markup
         )
-
     elif call.data == "unlock_link":
         final_url = book_storage.get(chat_id, "https://www.pdfdrive.com")
-        
         markup = InlineKeyboardMarkup(row_width=1)
         btn_download = InlineKeyboardButton("📥 Open Exact Website Link", url=final_url)
         markup.add(btn_download)
-        
         success_text = (
             "🎉 <b>Success!</b>\n\n"
             "All steps completed. The exact website link is now unlocked!\n\n"
             "👇 Click the button below to open it:"
         )
-        
         bot.edit_message_text(
-            success_text,
-            chat_id=chat_id,
-            message_id=message_id,
-            parse_mode='HTML',
-            reply_markup=markup
+            success_text, chat_id=chat_id, message_id=message_id, parse_mode='HTML', reply_markup=markup
         )
-        
         if chat_id in user_steps:
             del user_steps[chat_id]
         if chat_id in book_storage:
@@ -172,4 +144,4 @@ def handle_callback(call):
 
 if __name__ == "__main__":
     bot.infinity_polling()
-                
+    
