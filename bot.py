@@ -16,33 +16,34 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"👋 **Hello {update.effective_user.first_name}! Welcome to the PDF Book Finder Bot.**\n\n"
         "📚 **How to use this bot:**\n"
         "1. Simply type and send the **title of the book**.\n"
-        "2. The bot will automatically search the web and send you the first available PDF link.\n\n"
+        "2. The bot will search the web and send you the link to the top webpage offering the PDF.\n\n"
         "💡 *Example:* `Rich Dad Poor Dad`\n\n"
         "Type a book name below to get started!"
     )
     await update.message.reply_text(welcome_message, parse_mode="Markdown")
 
-def search_first_pdf_link(query: str) -> str:
-    """Search DuckDuckGo directly for PDF and return the first result link."""
-    search_query = f"{query} filetype:pdf"
+def search_top_website(query: str) -> str:
+    """Search for the book and return the first website link instead of broken file link."""
+    # Searching for website pages that contain the PDF book
+    search_query = f"{query} download pdf"
     
     try:
         results = list(DDGS().text(search_query, max_results=1))
         
         if results:
             first_result = results[0]
-            title = first_result.get("title", "PDF Document")
-            link = first_result.get("href", "")
+            title = first_result.get("title", "Book Website")
+            website_url = first_result.get("href", "")
             snippet = first_result.get("body", "")
             
             return (
                 f"📖 **Book Found!**\n\n"
-                f"📌 **Title:** {title}\n"
-                f"📝 **Description:** {snippet}\n\n"
-                f"🔗 **Download Link:** {link}"
+                f"📌 **Website Title:** {title}\n"
+                f"📝 **Details:** {snippet}\n\n"
+                f"🌐 **Visit Website to Download:** {website_url}"
             )
         else:
-            return "❌ Sorry, no direct PDF links were found for this book."
+            return "❌ Sorry, no website found for this book search."
     except Exception as e:
         logger.error(f"Search error: {e}")
         return "⚠️ An error occurred while searching. Please try again later."
@@ -52,8 +53,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not user_query:
         return
 
-    status_message = await update.message.reply_text("🔍 Searching the web for your PDF, please wait...")
-    result_text = search_first_pdf_link(user_query)
+    status_message = await update.message.reply_text("🔍 Searching for the book website, please wait...")
+    result_text = search_top_website(user_query)
     await status_message.edit_text(result_text, parse_mode="Markdown", disable_web_page_preview=False)
 
 def main() -> None:
